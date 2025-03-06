@@ -1,0 +1,22 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-custom-container
+  namespace: colabkids
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: my-container
+        imagePullPolicy: Always
+        image: ravindrasingh6969/colabkids:latest
+        ports:
+        - containerPort: 80
