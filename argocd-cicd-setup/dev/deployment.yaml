@@ -2,21 +2,21 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: my-custom-container
+  name: colabkids-frontend
   namespace: colabkids
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: nginx
+      app: frontend
   template:
     metadata:
       labels:
-        app: nginx
+        app: frontend
     spec:
       containers:
-      - name: my-container
+      - name: frontend
         imagePullPolicy: Always
-        image: ravindrasingh6969/colabkids:latest
+        image: 390402531423.dkr.ecr.us-east-1.amazonaws.com/colabkids/frontend:latest
         ports:
         - containerPort: 80

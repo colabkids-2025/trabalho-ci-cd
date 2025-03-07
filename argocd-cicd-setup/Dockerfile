@@ -1,12 +1,18 @@
 FROM ubuntu:latest
+
 LABEL name="Colabkids"
 LABEL email="ccolabkids@gmail.com"
+
 ENV UBUNTU_HOME=/var/www/html/
-RUN apt-get update -y
-ENV DEBIAN_FRONTEND noninteractive	
-RUN apt-get -y install tzdata
-RUN apt-get install apache2 -y
-WORKDIR UBUNTU_HOME
-COPY argocd-cicd-setup/script/index.html ${UBUNTU_HOME}
+
+RUN apt-get update -y && apt-get install -y tzdata apache2 && rm -rf /var/lib/apt/lists/*
+
+ENV DEBIAN_FRONTEND=noninteractive	
+
+WORKDIR /var/www/html/
+
+COPY script/index.html /var/www/html/
+
 EXPOSE 80
-CMD ["apachectl" , "-D","FOREGROUND"]
+
+CMD ["apachectl", "-D", "FOREGROUND"]

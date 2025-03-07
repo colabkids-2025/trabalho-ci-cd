@@ -2,7 +2,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: colabkidslication
+  name: colabkids-site
   namespace: argocd
   # Finalizer that ensures that project is not deleted until it is not referenced by any application
   finalizers:
@@ -10,11 +10,11 @@ metadata:
 spec:
   project: colabkids-project
   source:
-    repoURL:
+    repoURL: git@github.com:colabkids-2025/trabalho-ci-cd.git
     targetRevision: HEAD
-    path: environments/dev/colabkids
+    path: environments/dev
   destination:
-    server: https://kubernetes.default.svc
+    server: https://1BD5CBC0D55F8F3A85260769636B651E.gr7.us-east-1.eks.amazonaws.com
     namespace: colabkids
   syncPolicy:
     automated:
