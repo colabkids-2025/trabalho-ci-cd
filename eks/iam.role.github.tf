@@ -15,7 +15,7 @@ resource "aws_iam_role" "github" {
         }
         Condition = {
           StringLike = {
-            "token.actions.githubusercontent.com:sub" = "repo:kenerry-serain/devops-na-nuvem-05-apps:*"
+            "token.actions.githubusercontent.com:sub" = "repo:colabkids-2025/trabalho-ci-cd:*"
           }
           StringEquals = {
             "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
