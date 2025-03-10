@@ -14,4 +14,4 @@ images:
   newTag: ee336df2b18201e161650a063250bbe31b9f9bb5
 - name: 390402531423.dkr.ecr.us-east-1.amazonaws.com/colabkids/frontend
   newName: 390402531423.dkr.ecr.us-east-1.amazonaws.com/colabkids/frontend
-  newTag: 8c8e3b3c9991f47248c5ff570bda8dcf656b8f39
+  newTag: 2e7f943f461f6cd0d9eb017d0cb4419ef31b404b
