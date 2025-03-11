@@ -124,7 +124,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: test
-      url: https://test.colabkids.com
+      url: https://leandrospferreira.com.br/
     steps:
       - name: Checking code out
         uses: actions/checkout@v4
