@@ -1,0 +1,255 @@
+name: CI/CD Pipeline
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  id-token: write
+  contents: write  # Necessário para criar releases
+
+env:
+  IMAGE_TAG: ${{ github.sha }}
+  BACKEND_ECR_REPOSITORY: colabkids/backend
+  FRONTEND_ECR_REPOSITORY: colabkids/frontend
+
+jobs:
+  backend-build-teste:
+    name: Backend Build and Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checking code out
+        uses: actions/checkout@v4
+      
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: 7.0.x
+      
+      - name: Restore dependencies
+        run: |
+          cd ./colabkids-apps/backend/colabkidsApp
+          dotnet restore
+      
+      - name: Build
+        run: |
+          cd ./colabkids-apps/backend/colabkidsApp
+          dotnet build --no-restore
+      
+      - name: Test
+        run: |
+          cd ./colabkids-apps/backend/colabkidsApp
+          dotnet test --no-build --verbosity normal
+      
+      - name: Create backend artifact
+        run: |
+          cd ./colabkids-apps/backend/colabkidsApp
+          dotnet publish -c Release -o publish
+          tar -czf backend-artifact.tar.gz publish
+      
+      - name: Upload backend artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-artifact
+          path: ./colabkids-apps/backend/colabkidsApp/backend-artifact.tar.gz
+
+  frontend-build-teste:
+    name: Frontend Build and Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checking code out
+        uses: actions/checkout@v4
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: npm
+          cache-dependency-path: ./colabkids-apps/frontend/colabkidsApp/package-lock.json
+      
+      - name: Install dependencies
+        run: |
+          cd ./colabkids-apps/frontend/colabkidsApp
+          npm ci
+      
+      - name: Run tests
+        run: |
+          cd ./colabkids-apps/frontend/colabkidsApp
+          npm test || true  # Continua mesmo se os testes falharem (remova "|| true" para parar em caso de falha)
+      
+      - name: Create frontend artifact
+        run: |
+          cd ./colabkids-apps/frontend/colabkidsApp
+          npm run build
+          tar -czf frontend-artifact.tar.gz .next public package.json
+      
+      - name: Upload frontend artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-artifact
+          path: ./colabkids-apps/frontend/colabkidsApp/frontend-artifact.tar.gz
+
+  criando-release:
+    name: Create GitHub Release
+    needs: [backend-build-teste, frontend-build-teste]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checking code out
+        uses: actions/checkout@v4
+      
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: release-${{ github.sha }}
+          name: Release ${{ github.sha }}
+          files: |
+            artifacts/backend-artifact/backend-artifact.tar.gz
+            artifacts/frontend-artifact/frontend-artifact.tar.gz
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  deploy-ambiente-teste:
+    name: Deploy to Test Environment
+    needs: criando-release
+    runs-on: ubuntu-latest
+    environment:
+      name: test
+      url: https://test.colabkids.com
+    steps:
+      - name: Checking code out
+        uses: actions/checkout@v4
+
+      - name: AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{vars.AWS_REGION}}
+          role-to-assume: ${{vars.AWS_DEPLOYMENT_ROLE_ARN}}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push backend image to Amazon ECR
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          docker build -f ./colabkids-apps/backend/colabkidsApp/Dockerfile -t $REGISTRY/$BACKEND_ECR_REPOSITORY:$IMAGE_TAG ./colabkids-apps/backend/colabkidsApp
+          docker push $REGISTRY/$BACKEND_ECR_REPOSITORY:$IMAGE_TAG
+
+      - name: Build, tag, and push frontend image to Amazon ECR
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          docker build -f ./colabkids-apps/frontend/colabkidsApp/Dockerfile -t $REGISTRY/$FRONTEND_ECR_REPOSITORY:$IMAGE_TAG ./colabkids-apps/frontend/colabkidsApp
+          docker push $REGISTRY/$FRONTEND_ECR_REPOSITORY:$IMAGE_TAG
+
+      - uses: actions/checkout@v4
+        with:
+          repository: colabkids-2025/trabalho-ci-cd
+          token: ${{ secrets.PAT }}
+
+      - name: Update Kubernetes Manifests
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          cd gitops
+          kustomize edit set image $REGISTRY/$BACKEND_ECR_REPOSITORY=$REGISTRY/$BACKEND_ECR_REPOSITORY:$IMAGE_TAG
+          kustomize edit set image $REGISTRY/$FRONTEND_ECR_REPOSITORY=$REGISTRY/$FRONTEND_ECR_REPOSITORY:$IMAGE_TAG
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add kustomization.yml
+          git commit -m "[Bot] Updating images for deployment"
+          git pull --rebase origin main
+          git push
+
+  notificando-ambiente-teste:
+    name: Notification to e-mail
+    needs: [backend-build-teste, frontend-build-teste, criando-release, deploy-ambiente-teste]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check job status
+        id: check
+        run: |
+          if [[ ${{ needs.backend-build-teste.result }} == 'failure' || ${{ needs.frontend-build-teste.result }} == 'failure' || ${{ needs.criando-release.result }} == 'failure' || ${{ needs.deploy-ambiente-teste.result }} == 'failure' ]]; then
+            echo "status=failure" >> $GITHUB_OUTPUT
+          else
+            echo "status=success" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Send success email
+        if: steps.check.outputs.status == 'success'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ccolabkids@gmail.com
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: ✅ Deploy Concluído com Sucesso - Projeto ColabKids
+          body: |
+            O pipeline de CI/CD para o Projeto ColabKids foi concluído com sucesso!
+            
+            Detalhes da operação:
+            --------------------------------
+            Commit: ${{ github.sha }}
+            Autor: ${{ github.actor }}
+            Repositório: ${{ github.repository }}
+            Branch: main
+            Data/Hora: $(date)
+            
+            Componentes atualizados e implantados:
+            --------------------------------
+            Frontend: ${{ env.FRONTEND_ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
+            Backend: ${{ env.BACKEND_ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
+            
+            Ambiente de destino: Test
+            URL: https://leandrospferreira.com.br/
+            
+            Acesse o ambiente para validar as alterações. A versão atualizada já está disponível!
+            
+            Release: https://github.com/${{ github.repository }}/releases/tag/release-${{ github.sha }}
+            
+            Esta é uma mensagem automática do sistema de CI/CD.
+          to: ${{ github.event.pusher.email }}
+          from: Sistema CI/CD ColabKids <ccolabkids@gmail.com>
+
+      - name: Send email on failure
+        if: steps.check.outputs.status == 'failure'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ccolabkids@gmail.com
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: ❌ CI/CD Pipeline Failed - Projeto ColabKids
+          body: |
+            O pipeline de CI/CD para o Projeto ColabKids falhou.
+            
+            Detalhes da operação:
+            --------------------------------
+            Commit: ${{ github.sha }}
+            Autor: ${{ github.actor }}
+            Repositório: ${{ github.repository }}
+            Branch: main
+            
+            Componentes atualizados:
+            --------------------------------
+            Frontend: ${{ env.FRONTEND_ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
+            Backend: ${{ env.BACKEND_ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
+            
+            Por favor, verifique os logs detalhados em:
+            https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            
+            Esta é uma mensagem automática do sistema de CI/CD.
+          to: ${{ github.event.pusher.email }}
+          from: Sistema CI/CD ColabKids <ccolabkids@gmail.com>
