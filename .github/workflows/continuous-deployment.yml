@@ -191,9 +191,9 @@ jobs:
         if: steps.check.outputs.status == 'success'
         uses: dawidd6/action-send-mail@v3
         with:
-          server_address: smtp.gmail.com
-          server_port: 587
-          username: ccolabkids@gmail.com
+          server_address: ${{vars.MAIL_SERVER}}
+          server_port: ${{vars.MAIL_PORT}}
+          username: ${{vars.MAIL_USERNAME}}
           password: ${{ secrets.MAIL_PASSWORD }}
           subject: ✅ Deploy Concluído com Sucesso - Projeto ColabKids
           body: |
@@ -221,15 +221,15 @@ jobs:
             
             Esta é uma mensagem automática do sistema de CI/CD.
           to: ${{ github.event.pusher.email }}
-          from: Sistema CI/CD ColabKids <ccolabkids@gmail.com>
+          from: Sistema CI/CD ColabKids <${{vars.MAIL_USERNAME}}>
 
       - name: Send email on failure
         if: steps.check.outputs.status == 'failure'
         uses: dawidd6/action-send-mail@v3
         with:
-          server_address: smtp.gmail.com
-          server_port: 587
-          username: ccolabkids@gmail.com
+          server_address: ${{vars.MAIL_SERVER}}
+          server_port: ${{vars.MAIL_PORT}}
+          username: ${{vars.MAIL_USERNAME}}
           password: ${{ secrets.MAIL_PASSWORD }}
           subject: ❌ CI/CD Pipeline Failed - Projeto ColabKids
           body: |
@@ -252,4 +252,4 @@ jobs:
             
             Esta é uma mensagem automática do sistema de CI/CD.
           to: ${{ github.event.pusher.email }}
-          from: Sistema CI/CD ColabKids <ccolabkids@gmail.com>
+          from: Sistema CI/CD ColabKids <${{vars.MAIL_USERNAME}}>
