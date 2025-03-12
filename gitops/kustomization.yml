@@ -11,7 +11,7 @@ resources:
 images:
 - name: 390402531423.dkr.ecr.us-east-1.amazonaws.com/colabkids/backend
   newName: 390402531423.dkr.ecr.us-east-1.amazonaws.com/colabkids/backend
-  newTag: 3a5015b75d590ac57eda90eca8f783754868df76
+  newTag: 6aabedbc3c32d3c3df288fad382182b3b2bd97eb
 - name: 390402531423.dkr.ecr.us-east-1.amazonaws.com/colabkids/frontend
   newName: 390402531423.dkr.ecr.us-east-1.amazonaws.com/colabkids/frontend
-  newTag: 3a5015b75d590ac57eda90eca8f783754868df76
+  newTag: 6aabedbc3c32d3c3df288fad382182b3b2bd97eb
